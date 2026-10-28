@@ -20,6 +20,7 @@ $ErrorActionPreference = "SilentlyContinue"
 
 # --- Config ---
 $PeonDir = if ($env:CLAUDE_PEON_DIR) { $env:CLAUDE_PEON_DIR }
+           elseif ($PSScriptRoot -and (Test-Path (Join-Path (Split-Path -Parent $PSScriptRoot) "peon.ps1"))) { Split-Path -Parent $PSScriptRoot }
            else { Join-Path $env:USERPROFILE ".claude\hooks\peon-ping" }
 
 # Try Windows-native path first, fall back to Unix-style

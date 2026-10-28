@@ -637,6 +637,7 @@ peon-ping 适用于任何支持钩子的代理式 IDE。适配器将 IDE 特定�
 | **Trae** | 适配器 | 文件系统监视器：`bash adapters/trae.sh &` / `powershell adapters/trae.ps1 -Install`（[设置](#trae-设置)） |
 | **Kiro IDE** | 适配器 | 在 `.kiro/hooks/*.kiro.hook` 中添加调用 `adapters/kiro-ide.sh`（或 `.ps1`）的 Agent 钩子（[设置](#kiro-ide-设置)） |
 | **ECA** | 适配器 | 添加指向 `adapters/eca.sh`（或 `.ps1`）的 shell 钩子（[设置](#eca-设置)） |
+| **任何其他代理** | 通用适配器 | 在任意钩子中调用 `adapters/emit.sh <category>`（或 `emit.ps1`），或让代理运行 `peon-ping-connect` 技能（[设置](#便携安装与任意代理)） |
 
 > **Windows：** 所有适配器都有原生 PowerShell（`.ps1`）版本。Windows 安装程序（`install.ps1`）会将其复制到 `~/.claude/hooks/peon-ping/adapters/`。文件系统监视器（Amp、Antigravity、Kimi、Trae）使用 .NET `FileSystemWatcher` 而非 fswatch/inotifywait — 无需额外依赖。
 
@@ -1074,6 +1075,28 @@ curl -fsSL peonping.com/install | bash -s -- --openpeon
 ```
 
 适用于 OpenPeon 品牌化或工具无关的部署：`peon.sh` 会通过其 packs 锚定回退自动发现 `~/.openpeon/packs`，因此指向该根目录的适配器无需 `~/.claude` 即可工作。无需此标志时，也可用 `CLAUDE_CONFIG_DIR=~/.openpeon bash install.sh` 实现相同的重定向。
+
+### 便携安装与任意代理
+
+将整个运行时（脚本、语音包、配置、状态）放在你选择的一个文件夹中，然后让任何代理自行连接到它。
+
+```powershell
+# Windows：安装到便携文件夹（会自动设置 CLAUDE_PEON_DIR）
+powershell -File install.ps1 -InstallDir "$env:LOCALAPPDATA\peon-ping"
+```
+
+不带 `-InstallDir` 重新运行 `install.ps1` 会更新同一个文件夹。适配器也会根据自身位置找到该文件夹，因此即使没有 `CLAUDE_PEON_DIR`，`<folder>\adapters\*.ps1` 也能工作。
+
+**通用适配器。** 任何能运行命令的工具都可以通过指定 CESP 类别来播放声音：
+
+```bash
+bash <folder>/adapters/emit.sh task.complete --session-id my-agent
+# Windows: powershell -NoProfile -File <folder>\adapters\emit.ps1 input.required -SessionId my-agent
+```
+
+类别：`session.start`、`task.complete`、`input.required`、`task.error`、`resource.limit`、`task.acknowledge`。
+
+**`peon-ping-connect` 技能。** 安装程序会将一个与代理无关的技能复制到 `~/.agents/skills/peon-ping-connect`（以及安装文件夹中）。让任意代理运行它：它会找到安装位置，为该工具选择合适的方式（安装程序自动注册、内置适配器、通用适配器，或复制到 `<folder>/mcp` 的 MCP 服务器），安全地修改该工具的配置，并测试播放声音。
 
 ### oh-my-pi (omp) 设置
 

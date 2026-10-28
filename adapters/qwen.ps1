@@ -22,6 +22,7 @@ $ErrorActionPreference = "SilentlyContinue"
 
 # Determine peon-ping install directory
 $PeonDir = if ($env:CLAUDE_PEON_DIR) { $env:CLAUDE_PEON_DIR }
+           elseif ($PSScriptRoot -and (Test-Path (Join-Path (Split-Path -Parent $PSScriptRoot) "peon.ps1"))) { Split-Path -Parent $PSScriptRoot }
            else { Join-Path $env:USERPROFILE ".claude\hooks\peon-ping" }
 
 $PeonScript = Join-Path $PeonDir "peon.ps1"

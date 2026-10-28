@@ -331,7 +331,8 @@ if [ -f "$FISH_COMPLETIONS" ]; then
 fi
 
 # --- Remove skill directories ---
-for SKILL_NAME in peon-ping-toggle peon-ping-config peon-ping-use peon-ping-log peon-ping-rename; do
+rm -rf "$HOME/.agents/skills/peon-ping-connect" 2>/dev/null || true
+for SKILL_NAME in peon-ping-toggle peon-ping-config peon-ping-use peon-ping-log peon-ping-rename peon-ping-connect; do
   SKILL_DIR="$BASE_DIR/skills/$SKILL_NAME"
   if [ -d "$SKILL_DIR" ]; then
     # Sanity check before deletion

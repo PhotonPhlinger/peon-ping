@@ -103,6 +103,53 @@ Describe "Functional: codex.ps1 event mapping" {
     }
 }
 
+Describe "Functional: emit.ps1 generic adapter" {
+    BeforeEach {
+        $script:testDir = New-TestPeonDir
+        $env:CLAUDE_PEON_DIR = $script:testDir
+    }
+    AfterEach {
+        Remove-Item Env:\CLAUDE_PEON_DIR -ErrorAction SilentlyContinue
+        Remove-TestPeonDir $script:testDir
+    }
+
+    It "maps <category> to <hookEvent>" -ForEach @(
+        @{ category = "session.start"; hookEvent = "SessionStart" },
+        @{ category = "task.complete"; hookEvent = "Stop" },
+        @{ category = "input.required"; hookEvent = "PermissionRequest" },
+        @{ category = "task.error"; hookEvent = "PostToolUseFailure" },
+        @{ category = "resource.limit"; hookEvent = "PreCompact" },
+        @{ category = "task.acknowledge"; hookEvent = "SubagentStart" }
+    ) {
+        $adapter = Join-Path $script:AdaptersDir "emit.ps1"
+        & powershell -NoProfile -NonInteractive -File $adapter $category -SessionId "emit-test"
+
+        $json = Get-PeonInputLog $script:testDir
+        $json | Should -Not -BeNullOrEmpty
+        $json.hook_event_name | Should -Be $hookEvent
+        $json.session_id | Should -Be "emit-test"
+    }
+
+    It "rejects an unknown category with exit code 2" {
+        $adapter = Join-Path $script:AdaptersDir "emit.ps1"
+        & powershell -NoProfile -NonInteractive -File $adapter "not.a.category" 2>$null
+        $LASTEXITCODE | Should -Be 2
+        Get-PeonInputLog $script:testDir | Should -BeNullOrEmpty
+    }
+
+    It "finds peon.ps1 in its own install folder when CLAUDE_PEON_DIR is unset" {
+        Remove-Item Env:\CLAUDE_PEON_DIR -ErrorAction SilentlyContinue
+        $portableAdapters = Join-Path $script:testDir "adapters"
+        New-Item -ItemType Directory -Path $portableAdapters -Force | Out-Null
+        Copy-Item (Join-Path $script:AdaptersDir "emit.ps1") $portableAdapters
+        & powershell -NoProfile -NonInteractive -File (Join-Path $portableAdapters "emit.ps1") "task.complete"
+
+        $json = Get-PeonInputLog $script:testDir
+        $json | Should -Not -BeNullOrEmpty
+        $json.hook_event_name | Should -Be "Stop"
+    }
+}
+
 Describe "Functional: gemini.ps1 event mapping" {
     BeforeEach {
         $script:testDir = New-TestPeonDir

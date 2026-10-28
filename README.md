@@ -746,6 +746,7 @@ peon-ping works with any agentic IDE that supports hooks. Adapters translate IDE
 | **Trae** | Adapter | Filesystem watcher: `bash adapters/trae.sh &` / `powershell adapters/trae.ps1 -Install` ([setup](#trae-setup)) |
 | **Kiro IDE** | Adapter | Agent hooks in `.kiro/hooks/*.kiro.hook` calling `adapters/kiro-ide.sh` (or `.ps1`) ([setup](#kiro-ide-setup)) |
 | **ECA** | Adapter | Add a shell hook pointing to `adapters/eca.sh` (or `.ps1`) ([setup](#eca-setup)) |
+| **Any other agent** | Generic adapter | Call `adapters/emit.sh <category>` (or `emit.ps1`) from any hook, or ask the agent to run the `peon-ping-connect` skill ([setup](#portable-install-and-any-agent)) |
 
 > **Windows:** All adapters have native PowerShell (`.ps1`) versions. The Windows installer (`install.ps1`) copies them to `~/.claude/hooks/peon-ping/adapters/`. Filesystem watchers (Amp, Antigravity, Kimi, Trae) use .NET `FileSystemWatcher` instead of fswatch/inotifywait — no extra dependencies needed.
 
@@ -1193,6 +1194,28 @@ curl -fsSL peonping.com/install | bash -s -- --openpeon
 ```
 
 Useful for an OpenPeon-branded or tool-agnostic setup: `peon.sh` auto-discovers `~/.openpeon/packs` via its packs-anchored fallback, so adapters pointed at that root work without `~/.claude`. The same reroot is also available with no flag via `CLAUDE_CONFIG_DIR=~/.openpeon bash install.sh`.
+
+### Portable install and any agent
+
+Put the whole runtime (scripts, packs, config, state) in one folder of your choice, then let any agent connect itself to it.
+
+```powershell
+# Windows: install into a portable folder (sets CLAUDE_PEON_DIR for you)
+powershell -File install.ps1 -InstallDir "$env:LOCALAPPDATA\peon-ping"
+```
+
+Re-running `install.ps1` without `-InstallDir` updates that same folder. Adapters also find the folder from their own location, so `<folder>\adapters\*.ps1` works even without `CLAUDE_PEON_DIR`.
+
+**Generic adapter.** Anything that can run a command can play a sound by naming a CESP category:
+
+```bash
+bash <folder>/adapters/emit.sh task.complete --session-id my-agent
+# Windows: powershell -NoProfile -File <folder>\adapters\emit.ps1 input.required -SessionId my-agent
+```
+
+Categories: `session.start`, `task.complete`, `input.required`, `task.error`, `resource.limit`, `task.acknowledge`.
+
+**`peon-ping-connect` skill.** The installer copies an agent-neutral skill to `~/.agents/skills/peon-ping-connect` (and into the install folder). Ask any agent to run it: it finds the install, picks the right method for that harness (installer auto-registration, a bundled adapter, the generic adapter, or the MCP server, which is copied to `<folder>/mcp`), edits the harness config safely, and tests a sound.
 
 ### oh-my-pi (omp) setup
 

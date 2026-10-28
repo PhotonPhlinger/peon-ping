@@ -674,6 +674,7 @@ else
   curl -fsSL "$REPO_BASE/adapters/kiro-ide.sh" -o "$INSTALL_DIR/adapters/kiro-ide.sh" 2>/dev/null || true
   curl -fsSL "$REPO_BASE/adapters/eca.sh" -o "$INSTALL_DIR/adapters/eca.sh" 2>/dev/null || true
   curl -fsSL "$REPO_BASE/adapters/grok.sh" -o "$INSTALL_DIR/adapters/grok.sh" 2>/dev/null || true
+  curl -fsSL "$REPO_BASE/adapters/emit.sh" -o "$INSTALL_DIR/adapters/emit.sh" 2>/dev/null || true
   mkdir -p "$INSTALL_DIR/scripts"
   curl -fsSL "$REPO_BASE/scripts/hook-handle-use.sh" -o "$INSTALL_DIR/scripts/hook-handle-use.sh" 2>/dev/null || true
   curl -fsSL "$REPO_BASE/scripts/codex-config.py" -o "$INSTALL_DIR/scripts/codex-config.py"
@@ -884,6 +885,14 @@ install_skill peon-ping-use
 install_skill peon-ping-log
 install_skill peon-ping-remix
 install_skill peon-ping-create-pack
+install_skill peon-ping-connect
+
+# peon-ping-connect is agent-neutral: also expose it in ~/.agents/skills, the
+# shared skills folder several agents (Codex and others) read.
+if [ "$LOCAL_MODE" != true ] && [ -f "$BASE_DIR/skills/peon-ping-connect/SKILL.md" ]; then
+  mkdir -p "$HOME/.agents/skills/peon-ping-connect"
+  cp "$BASE_DIR/skills/peon-ping-connect/SKILL.md" "$HOME/.agents/skills/peon-ping-connect/"
+fi
 
 # --- Install trainer voice packs ---
 TRAINER_DIR="$INSTALL_DIR/trainer"
