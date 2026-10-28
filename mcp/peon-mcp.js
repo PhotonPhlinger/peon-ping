@@ -17,6 +17,7 @@ function readConfig() {
     join(home, ".claude", "hooks", "peon-ping", "config.json"),
     join(home, ".openpeon", "config.json"),
   ];
+  if (process.env.CLAUDE_PEON_DIR) candidates.unshift(join(process.env.CLAUDE_PEON_DIR, "config.json"));
   for (const p of candidates) {
     try {
       return JSON.parse(readFileSync(p, "utf-8"));
@@ -34,7 +35,11 @@ try { version = readFileSync(join(__dirname, "..", "VERSION"), "utf-8").trim(); 
 
 function findPacksDir() {
   if (process.env.PEON_PACKS_DIR && existsSync(process.env.PEON_PACKS_DIR)) return process.env.PEON_PACKS_DIR;
-  for (const dir of [join(home, ".openpeon", "packs"), join(home, ".claude", "hooks", "peon-ping", "packs")]) {
+  const candidates = [join(home, ".openpeon", "packs"), join(home, ".claude", "hooks", "peon-ping", "packs")];
+  if (process.env.CLAUDE_PEON_DIR) candidates.unshift(join(process.env.CLAUDE_PEON_DIR, "packs"));
+  // Installed copy lives at <install>/mcp/peon-mcp.js
+  candidates.push(join(__dirname, "..", "packs"));
+  for (const dir of candidates) {
     if (existsSync(dir)) return dir;
   }
   return null;

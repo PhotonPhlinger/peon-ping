@@ -87,6 +87,7 @@ IDE triggers hook → `peon.sh` reads JSON stdin → single Python call maps eve
 - **`adapters/windsurf.sh`** — Translates Windsurf Cascade hook events to CESP JSON
 - **`adapters/antigravity.sh`** — Filesystem watcher for Google Antigravity agent events
 - **`adapters/grok.sh`** — Translates Grok Build camelCase hook events to CESP JSON
+- **`adapters/emit.sh`** — Generic adapter: any tool or agent passes a CESP category (`task.complete`, ...) and it builds the hook JSON for `peon.sh`
 
 All adapters have native Windows PowerShell (`.ps1`) counterparts alongside the bash originals. Windows adapters pipe CESP JSON to `peon.ps1` instead of `peon.sh`. Filesystem watchers (amp, antigravity, kimi) use .NET `FileSystemWatcher` instead of fswatch/inotifywait.
 
@@ -139,12 +140,13 @@ See [RELEASING.md](RELEASING.md) for full details.
 
 ## Skills
 
-Seven Claude Code skills live in `skills/`:
+Eight Claude Code skills live in `skills/`:
 - `/peon-ping-toggle` — Mute/unmute sounds
 - `/peon-ping-config` — Modify any peon-ping setting (volume, packs, categories, etc.)
 - `/peon-ping-use <pack>` — Assign a specific pack to the current agent session (agentskill mode)
 - `/peon-ping-log <n> <exercise>` — Log exercise reps to the Peon Trainer (e.g. `/peon-ping-log 25 pushups`)
 - `/peon-ping-rename [name]` — Rename the current session for notifications and terminal tab title; no arg resets to auto-detect
+- `peon-ping-connect` — Agent-neutral: wires whatever harness runs it to an existing install (also copied to `~/.agents/skills`)
 - `peon-ping-create-pack` — Internal, invoked headlessly by `peon create` to author and render a brand-new draft pack; not meant to be run directly
 - `peon-ping-remix` — Internal, invoked headlessly by the `peon eval` server to execute reroll jobs; not meant to be run directly
 

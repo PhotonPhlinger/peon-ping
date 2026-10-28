@@ -49,10 +49,15 @@ $DefaultClaudeDir = Join-Path $env:USERPROFILE ".claude"
 $DefaultInstallDir = Join-Path $DefaultClaudeDir "hooks\peon-ping"
 $ScriptInstallDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
 $InstallDir = $DefaultInstallDir
+$PortableInstall = $false
 if ($ScriptInstallDir -and (Split-Path -Leaf $ScriptInstallDir) -eq "peon-ping" -and (Split-Path -Leaf (Split-Path -Parent $ScriptInstallDir)) -eq "hooks") {
     $InstallDir = $ScriptInstallDir
+} elseif ($env:CLAUDE_PEON_DIR -and (Test-Path -LiteralPath (Join-Path $env:CLAUDE_PEON_DIR "peon.ps1"))) {
+    # Portable install (install.ps1 -InstallDir): hooks still live in ~/.claude
+    $InstallDir = $env:CLAUDE_PEON_DIR
+    $PortableInstall = $true
 }
-$ClaudeDir = Split-Path -Parent (Split-Path -Parent $InstallDir)
+$ClaudeDir = if ($PortableInstall) { $DefaultClaudeDir } else { Split-Path -Parent (Split-Path -Parent $InstallDir) }
 $SettingsFile = Join-Path $ClaudeDir "settings.json"
 $SkillsDir = Join-Path $ClaudeDir "skills"
 $CliBinDir = Join-Path $env:USERPROFILE ".local\bin"
@@ -504,7 +509,7 @@ Write-Host ""
 Write-Host "Removing skills..."
 
 $skillsRemoved = 0
-foreach ($skillName in @("peon-ping-toggle", "peon-ping-config", "peon-ping-use", "peon-ping-log", "peon-ping-rename")) {
+foreach ($skillName in @("peon-ping-toggle", "peon-ping-config", "peon-ping-use", "peon-ping-log", "peon-ping-rename", "peon-ping-connect")) {
     $skillPath = Join-Path $SkillsDir $skillName
     if (Test-Path $skillPath) {
         Remove-Item -Path $skillPath -Recurse -Force
@@ -567,6 +572,13 @@ if (Test-Path $InstallDir) {
         Remove-Item -Path $InstallDir -Recurse -Force
         Write-Host "  Removed $InstallDir" -ForegroundColor Green
     }
+}
+
+# --- Clear portable install pointer ---
+if ($PortableInstall -and -not $KeepSounds) {
+    [Environment]::SetEnvironmentVariable("CLAUDE_PEON_DIR", $null, "User")
+    Remove-Item -Path (Join-Path $env:USERPROFILE ".agents\skills\peon-ping-connect") -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host "  Cleared CLAUDE_PEON_DIR and removed ~/.agents/skills/peon-ping-connect" -ForegroundColor Green
 }
 
 # --- Summary ---

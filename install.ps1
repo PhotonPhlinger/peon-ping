@@ -11,7 +11,11 @@ param(
     [switch]$Local,
     [switch]$Global,
     [switch]$OpenPeon,
-    [switch]$InitLocalConfig
+    [switch]$InitLocalConfig,
+    # Portable install: put the whole runtime (scripts, packs, config, state)
+    # in this folder instead of ~/.claude/hooks/peon-ping. Persisted as the
+    # CLAUDE_PEON_DIR user environment variable so adapters and hooks find it.
+    [string]$InstallDir = ""
 )
 
 # When run via Invoke-Expression (one-liner install), $PSScriptRoot is empty.
@@ -22,6 +26,15 @@ $ErrorActionPreference = "Stop"
 
 if ($Local -and $Global) {
     throw "Use either -Local or -Global, not both."
+}
+if ($InstallDir -and $Local) {
+    throw "Use either -Local or -InstallDir, not both."
+}
+$CustomInstallDir = $InstallDir
+# Re-running the installer after a portable install updates that folder in place.
+if (-not $CustomInstallDir -and -not $Local -and -not $OpenPeon -and $env:CLAUDE_PEON_DIR -and
+    (Test-Path -LiteralPath (Join-Path $env:CLAUDE_PEON_DIR "peon.ps1"))) {
+    $CustomInstallDir = $env:CLAUDE_PEON_DIR
 }
 
 # Windows PowerShell 5.1 can default to older TLS versions, which breaks the
@@ -69,7 +82,19 @@ $GlobalClaudeDir = Join-Path $env:USERPROFILE ".claude"
 $LocalClaudeDir = Join-Path $PWD.Path ".claude"
 $OpenPeonDir = Join-Path $env:USERPROFILE ".openpeon"
 $ClaudeDir = if ($OpenPeon) { $OpenPeonDir } elseif ($Local) { $LocalClaudeDir } else { $GlobalClaudeDir }
-$InstallDir = Join-Path $ClaudeDir "hooks\peon-ping"
+$InstallDir = if ($CustomInstallDir) {
+    $expanded = [Environment]::ExpandEnvironmentVariables($CustomInstallDir) -replace '^~(?=[\\/]|$)', $env:USERPROFILE
+    [System.IO.Path]::GetFullPath($expanded)
+} else {
+    Join-Path $ClaudeDir "hooks\peon-ping"
+}
+if ($CustomInstallDir) {
+    Write-Host "Portable install folder: $InstallDir" -ForegroundColor Cyan
+    # Set for this process too, so harness registration below and the
+    # test sound at the end resolve the custom folder.
+    $env:CLAUDE_PEON_DIR = $InstallDir
+    [Environment]::SetEnvironmentVariable("CLAUDE_PEON_DIR", $InstallDir, "User")
+}
 $SettingsFile = Join-Path $ClaudeDir "settings.json"
 $RegistryUrl = "https://peonping.github.io/registry/index.json"
 $RepoBase = "https://raw.githubusercontent.com/PeonPing/peon-ping/main"
@@ -3473,7 +3498,7 @@ $adapterFiles = @(
     "kiro.ps1", "openclaw.ps1", "amp.ps1", "antigravity.ps1",
     "kimi.ps1", "opencode.ps1", "kilo.ps1", "deepagents.ps1",
     "qwen.ps1", "iflow.ps1", "trae.ps1", "kiro-ide.ps1", "eca.ps1",
-    "grok.ps1",
+    "grok.ps1", "emit.ps1",
     # Cross-platform: the Antigravity transcript watcher is plain Python,
     # and antigravity.ps1 has no equivalent turn-boundary parsing.
     "antigravity-watcher.py"
@@ -3498,6 +3523,24 @@ foreach ($adapterFile in $adapterFiles) {
     Unblock-File -Path $destPath -ErrorAction SilentlyContinue
 }
 Write-Host "  Installed $($adapterFiles.Count) adapter scripts to $adaptersDir"
+
+# --- Install MCP server (for agents with MCP support but no hooks) ---
+# Node.js 18+ is needed to run it; run "npm install" in the mcp folder once.
+$mcpDir = Join-Path $InstallDir "mcp"
+New-Item -ItemType Directory -Path $mcpDir -Force | Out-Null
+foreach ($mcpFile in @("peon-mcp.js", "package.json")) {
+    $mcpSource = Join-Path (Join-Path $ScriptDir "mcp") $mcpFile
+    $mcpTarget = Join-Path $mcpDir $mcpFile
+    if (Test-Path $mcpSource) {
+        Copy-Item $mcpSource $mcpTarget -Force
+    } else {
+        try {
+            Invoke-WebRequest -Uri "$RepoBase/mcp/$mcpFile" -OutFile $mcpTarget -UseBasicParsing -ErrorAction Stop
+        } catch {
+            Write-Host "  Warning: Could not download mcp/$mcpFile" -ForegroundColor Yellow
+        }
+    }
+}
 
 # --- Install CLI shortcut (global installs only) ---
 # Prefer pwsh (PowerShell 7+) when available, fall back to Windows PowerShell 5.1.
@@ -4274,7 +4317,7 @@ $skillsSourceDir = Join-Path $ScriptDir "skills"
 $skillsTargetDir = Join-Path $ClaudeDir "skills"
 New-Item -ItemType Directory -Path $skillsTargetDir -Force | Out-Null
 
-$skillNames = @("peon-ping-toggle", "peon-ping-config", "peon-ping-use", "peon-ping-log", "peon-ping-remix", "peon-ping-create-pack")
+$skillNames = @("peon-ping-toggle", "peon-ping-config", "peon-ping-use", "peon-ping-log", "peon-ping-remix", "peon-ping-create-pack", "peon-ping-connect")
 
 if (Test-Path $skillsSourceDir) {
     # Local install: copy from repo
@@ -4309,6 +4352,25 @@ if (Test-Path $skillsSourceDir) {
         }
     }
     Write-Host "  Skills installed" -ForegroundColor Green
+}
+
+# --- Install the agent-neutral setup skill ---
+# peon-ping-connect lets any agent (Codex, Gemini CLI, a local agent, ...) wire
+# its own hooks to this install. Keep a copy inside the install folder so the
+# folder is self-contained, and one in ~/.agents/skills, the shared skills
+# folder several agents read.
+$setupSkillSource = Join-Path $skillsTargetDir "peon-ping-connect"
+if (Test-Path (Join-Path $setupSkillSource "SKILL.md")) {
+    $setupSkillTargets = @(
+        (Join-Path $InstallDir "skills\peon-ping-connect"),
+        (Join-Path $env:USERPROFILE ".agents\skills\peon-ping-connect")
+    )
+    if ($Local) { $setupSkillTargets = @($setupSkillTargets[0]) }
+    foreach ($target in $setupSkillTargets) {
+        New-Item -ItemType Directory -Path $target -Force | Out-Null
+        Copy-Item -Path (Join-Path $setupSkillSource "*") -Destination $target -Recurse -Force
+    }
+    Write-Host "  peon-ping-connect skill copied to: $($setupSkillTargets -join ', ')" -ForegroundColor DarkGray
 }
 
 # --- Install trainer voice packs ---
@@ -4446,6 +4508,7 @@ if ($Updating) {
     Write-Host "  To install specific packs: .\install.ps1 -Packs peon,glados,peasant" -ForegroundColor DarkGray
     Write-Host "  To install ALL packs: .\install.ps1 -All" -ForegroundColor DarkGray
     Write-Host "  To install project-locally: .\install.ps1 -Local" -ForegroundColor DarkGray
+    Write-Host "  To install into a portable folder: .\install.ps1 -InstallDir D:\Tools\peon-ping" -ForegroundColor DarkGray
     Write-Host "  To create only project-local config: .\install.ps1 -InitLocalConfig" -ForegroundColor DarkGray
     Write-Host "  To uninstall: powershell -File `"$InstallDir\uninstall.ps1`"" -ForegroundColor DarkGray
 }
